@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -12,10 +13,11 @@ namespace AlwaysOnTopper
     static class Program
     {
         const Int32 MenuId = 31337;
-        static string MenuItemName = "Always on top";
+        const string DefaultMenuItemName = "Always on top";
         const int Interval = 500;
         const int OffsetFromBottom = 1;
 
+        static string MenuItemName;
         static Dictionary<string, string> Languages = new Dictionary<string, string>()
         {
             {"ru", "Поверх всех окон" }
@@ -187,6 +189,7 @@ namespace AlwaysOnTopper
         }
 
         const uint EVENT_OBJECT_INVOKED = 0x8013;
+        const uint EVENT_OBJECT_FOCUS = 0x8005;
         const uint WINEVENT_OUTOFCONTEXT = 0;
         const UInt32 MFT_STRING = 0x00000000;
         const UInt32 MFS_CHECKED = 0x00000008;
@@ -272,14 +275,14 @@ namespace AlwaysOnTopper
             else if (!windowHandles.ContainsValue(windowHwnd))
             {
                 var hhook = SetWinEventHook(EVENT_OBJECT_INVOKED, EVENT_OBJECT_INVOKED, windowHwnd,
-                        WinEventProc, 0, 0, WINEVENT_OUTOFCONTEXT);
+                        WinEventObjectInvoked, 0, 0, WINEVENT_OUTOFCONTEXT);
                 if (hhook != IntPtr.Zero)
                     windowHandles[hhook] = windowHwnd;
             }
         }
 
-        static void WinEventProc(IntPtr hWinEventHook, uint eventType,
-        IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        static void WinEventObjectInvoked(IntPtr hWinEventHook, uint eventType,
+            IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
         {
             if (idChild != MenuId)
                 return;
@@ -293,6 +296,12 @@ namespace AlwaysOnTopper
             UpdateAlwaysOnTopToMenu(windowHwnd); // Update menu
         }
 
+        static void WinEventObjectFocus(IntPtr hWinEventHook, uint eventType,
+            IntPtr hwnd, int idObject, int idChild, uint dwEventThread, uint dwmsEventTime)
+        {
+            UpdateAlwaysOnTopToMenu(GetForegroundWindow());
+        }
+
         [STAThread]
         static void Main()
         {
@@ -303,8 +312,12 @@ namespace AlwaysOnTopper
             try
             {
                 CultureInfo currentCulture = Thread.CurrentThread.CurrentCulture;
-                Languages.TryGetValue(currentCulture.TwoLetterISOLanguageName, out MenuItemName);
+                if (!Languages.TryGetValue(currentCulture.TwoLetterISOLanguageName, out MenuItemName))
+                    MenuItemName = DefaultMenuItemName;
 
+                SetWinEventHook(EVENT_OBJECT_FOCUS, EVENT_OBJECT_FOCUS, IntPtr.Zero,
+                        WinEventObjectFocus, 0, 0, WINEVENT_OUTOFCONTEXT);
+           
                 // Dumb form for message queue
                 var form = new Form();
                 form.Load += new EventHandler((object o, EventArgs e) =>
@@ -313,20 +326,16 @@ namespace AlwaysOnTopper
                     form.ShowInTaskbar = false;
                 });
 
-                var timer = new System.Threading.Timer(new TimerCallback(
-                    (object state) =>
-                    {
-                        try
-                        {
-                            form.Invoke(new Action(() =>
-                            {
-                                UpdateAlwaysOnTopToMenu(GetForegroundWindow());
-                            }));
-                        }
-                        catch { }
-                    }),
-                null, Interval, Interval);
                 Application.Run(form);
+            }
+            catch (Exception ex)
+            {
+                try
+                {
+                    MessageBox.Show($"{ex.GetType()}: {ex.Message}{ex.StackTrace}", "AlwaysOnTopper error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    File.WriteAllText("exception.txt", $"{ex.GetType()}: {ex.Message}{ex.StackTrace}");
+                }
+                catch { }
             }
             finally
             {
