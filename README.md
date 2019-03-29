@@ -4,7 +4,7 @@ Simple app for Windows, adds 'Always on top' item to system menu of every window
 ![Screenshot](screenshot.png)
 
 ## How to use
-Just run **AlwaysOnTopper.exe**. It has not any GUI. Every window should have "Always on top" in menu now. It's recommended to add this app to autorun.
+Just run **AlwaysOnTopper.exe**. It doesn't have any GUI. Every window should have "Always on top" in menu now. It's recommended to add this app to autorun.
 
 ## Author/contacts
 
