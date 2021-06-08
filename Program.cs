@@ -27,6 +27,33 @@ namespace AlwaysOnTopper
         [DllImport("user32.dll", SetLastError = true)]
         static extern IntPtr GetSystemMenu(IntPtr hWnd, bool bRevert);
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct POINT
+        {
+            public int X;
+            public int Y;
+        }
+
+        [StructLayout(LayoutKind.Sequential)]
+        public struct MSG
+        {
+            IntPtr hwnd;
+            uint message;
+            UIntPtr wParam;
+            IntPtr lParam;
+            int time;
+            POINT pt;
+        }
+
+        [DllImport("user32.dll")]
+        static extern sbyte GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+        [DllImport("user32.dll")]
+        static extern bool TranslateMessage([In] ref MSG lpMsg);
+
+        [DllImport("user32.dll")]
+        static extern IntPtr DispatchMessage([In] ref MSG lpmsg);
+
         [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
         static extern bool GetMenuItemInfo(IntPtr hMenu, UInt32 uItem, bool fByPosition, [In, Out] MENUITEMINFO lpmii);
 
@@ -317,16 +344,12 @@ namespace AlwaysOnTopper
 
                 SetWinEventHook(EVENT_OBJECT_FOCUS, EVENT_OBJECT_FOCUS, IntPtr.Zero,
                         WinEventObjectFocus, 0, 0, WINEVENT_OUTOFCONTEXT);
-           
-                // Dumb form for message queue
-                var form = new Form();
-                form.Load += new EventHandler((object o, EventArgs e) =>
-                {
-                    form.WindowState = FormWindowState.Minimized;
-                    form.ShowInTaskbar = false;
-                });
 
-                Application.Run(form);
+                while (GetMessage(out var message, IntPtr.Zero, 0, 0) > 0) {
+                    TranslateMessage(ref message);
+                    DispatchMessage(ref message);
+                }
+
             }
             catch (Exception ex)
             {
